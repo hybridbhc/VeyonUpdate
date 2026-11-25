@@ -1,0 +1,10 @@
+---
+- name: Aktualizacja Veyon na komputerach Linux Mint
+  hosts: all
+  become: true
+  tasks:
+    - name: Odśwież listę pakietów i zaktualizuj Veyon
+      ansible.builtin.apt:
+        name: veyon
+        state: latest
+        update_cache: true
