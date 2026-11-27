@@ -1,43 +1,44 @@
----
-- name: Dodaj klucz publiczny Veyon
-  hosts: all
-  become: true
+vars:
+  smb_mount: "/mnt/sp3"
+  source_key: "/mnt/sp3/SkryptyAuto/s302_public_key.pem"
+  smb_credentials: "/run/secrets/sp3_smb_credentials"
+  key_name: "s302/public"
+  temp_key: "/tmp/s302_public_key.pem"
+  veyon_cli: "/usr/bin/veyon-cli"
 
-  vars:
-    source_key: "/mnt/praceuczniow/SkryptyAuto/s302_public_key.pem"
-    key_name: "sp3/public"
-    temp_key: "/tmp/s302_public_key.pem"
-    veyon_cli: "/usr/bin/veyon-cli"
+tasks:
+  - name: Zamontuj udział SMB na środowisku Semaphore
+    ansible.posix.mount:
+      src: "//sp3-302-00.local/praceuczniow"
+      path: "{{ smb_mount }}"
+      fstype: cifs
+      opts: "ro,credentials={{ smb_credentials }},iocharset=utf8"
+      state: ephemeral
+    delegate_to: localhost
+    become: true
 
-  tasks:
-    - name: Sprawdź, czy klucz jest dostępny
-      ansible.builtin.stat:
-        path: "{{ source_key }}"
-      register: key_file
+  - name: Sprawdź, czy klucz jest dostępny
+    ansible.builtin.stat:
+      path: "{{ source_key }}"
+    register: key_file
+    delegate_to: localhost
 
-    - name: Przerwij, jeśli nie znaleziono klucza
-      ansible.builtin.fail:
-        msg: "Nie znaleziono klucza: {{ source_key }}. Sprawdź, czy udział SMB jest zamontowany."
-      when: not key_file.stat.exists
+  - name: Przerwij, jeśli nie znaleziono klucza
+    ansible.builtin.fail:
+      msg: "Nie znaleziono klucza pod {{ source_key }}"
+    when: not key_file.stat.exists
 
-    - name: Skopiuj klucz tymczasowo na host docelowy
-      ansible.builtin.copy:
-        src: "{{ source_key }}"
-        dest: "{{ temp_key }}"
-        mode: "0600"
+  - name: Skopiuj klucz tymczasowo na host docelowy
+    ansible.builtin.copy:
+      src: "{{ source_key }}"
+      dest: "{{ temp_key }}"
+      mode: "0600"
 
-    - name: Zaimportuj klucz publiczny do Veyon
-      ansible.builtin.command:
-        argv:
-          - "{{ veyon_cli }}"
-          - authkeys
-          - import
-          - "{{ key_name }}"
-          - "{{ temp_key }}"
-      register: import_result
-      changed_when: import_result.rc == 0
-
-    - name: Usuń plik tymczasowy
-      ansible.builtin.file:
-        path: "{{ temp_key }}"
-        state: absent
+  - name: Zaimportuj klucz publiczny do Veyon
+    ansible.builtin.command:
+      argv:
+        - "{{ veyon_cli }}"
+        - authkeys
+        - import
+        - "{{ key_name }}"
+        - "{{ temp_key }}"
